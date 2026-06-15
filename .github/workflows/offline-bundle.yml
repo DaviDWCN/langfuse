@@ -15,19 +15,24 @@ on:
 jobs:
   bundle-offline:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Define Environment Variables
+        env:
+          POSTGRES_VERSION: ${{ github.event.inputs.postgres_version }}
+          LANGFUSE_VERSION: ${{ github.event.inputs.langfuse_version }}
         run: |
           # Create a dummy env file so docker-compose config can resolve variables correctly
           touch .env
-          echo "POSTGRES_VERSION=${{ github.event.inputs.postgres_version }}" >> .env
+          echo "POSTGRES_VERSION=${POSTGRES_VERSION}" >> .env
           # For Langfuse images, we update the docker-compose.yml on the fly to inject the requested version
-          sed -i "s|image: docker.io/langfuse/langfuse:3|image: docker.io/langfuse/langfuse:${{ github.event.inputs.langfuse_version }}|g" docker-compose.yml
-          sed -i "s|image: docker.io/langfuse/langfuse-worker:3|image: docker.io/langfuse/langfuse-worker:${{ github.event.inputs.langfuse_version }}|g" docker-compose.yml
+          sed -i "s|image: docker.io/langfuse/langfuse:3|image: docker.io/langfuse/langfuse:${LANGFUSE_VERSION}|g" docker-compose.yml
+          sed -i "s|image: docker.io/langfuse/langfuse-worker:3|image: docker.io/langfuse/langfuse-worker:${LANGFUSE_VERSION}|g" docker-compose.yml
 
       - name: Parse Required Images
         id: parse_images
@@ -38,15 +43,15 @@ jobs:
 
       - name: Pull Docker Images
         run: |
-          for img in ${{ env.IMAGES }}; do
+          for img in $IMAGES; do
             echo "Pulling $img..."
-            docker pull $img
+            docker pull "$img"
           done
 
       - name: Save Docker Images to Tarball
         run: |
           echo "Saving images to langfuse-offline-bundle.tar..."
-          docker save -o langfuse-offline-bundle.tar ${{ env.IMAGES }}
+          docker save -o langfuse-offline-bundle.tar $IMAGES
 
           # Compress the tar file to save artifact space/time
           gzip langfuse-offline-bundle.tar
@@ -61,7 +66,7 @@ jobs:
           cp .env.dev.example offline-bundle/.env.example || true
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: langfuse-offline-package
           path: offline-bundle/
