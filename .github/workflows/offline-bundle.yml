@@ -1,0 +1,68 @@
+name: Build Offline Docker Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      langfuse_version:
+        description: 'Langfuse Image Version Tag (e.g. 3, 3.185.0)'
+        required: true
+        default: '3'
+      postgres_version:
+        description: 'PostgreSQL Version'
+        required: true
+        default: '17'
+
+jobs:
+  bundle-offline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Define Environment Variables
+        run: |
+          # Create a dummy env file so docker-compose config can resolve variables correctly
+          touch .env
+          echo "POSTGRES_VERSION=${{ github.event.inputs.postgres_version }}" >> .env
+          # For Langfuse images, we update the docker-compose.yml on the fly to inject the requested version
+          sed -i "s|image: docker.io/langfuse/langfuse:3|image: docker.io/langfuse/langfuse:${{ github.event.inputs.langfuse_version }}|g" docker-compose.yml
+          sed -i "s|image: docker.io/langfuse/langfuse-worker:3|image: docker.io/langfuse/langfuse-worker:${{ github.event.inputs.langfuse_version }}|g" docker-compose.yml
+
+      - name: Parse Required Images
+        id: parse_images
+        run: |
+          IMAGES=$(docker compose config --images | tr '\n' ' ')
+          echo "IMAGES=$IMAGES" >> $GITHUB_ENV
+          echo "Parsed images: $IMAGES"
+
+      - name: Pull Docker Images
+        run: |
+          for img in ${{ env.IMAGES }}; do
+            echo "Pulling $img..."
+            docker pull $img
+          done
+
+      - name: Save Docker Images to Tarball
+        run: |
+          echo "Saving images to langfuse-offline-bundle.tar..."
+          docker save -o langfuse-offline-bundle.tar ${{ env.IMAGES }}
+
+          # Compress the tar file to save artifact space/time
+          gzip langfuse-offline-bundle.tar
+
+      - name: Prepare Artifact Bundle
+        run: |
+          mkdir -p offline-bundle
+          mv langfuse-offline-bundle.tar.gz offline-bundle/
+          # Include the modified docker-compose.yml that uses the selected tags
+          cp docker-compose.yml offline-bundle/
+          # Provide an example env file with default safe values for offline use
+          cp .env.dev.example offline-bundle/.env.example || true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: langfuse-offline-package
+          path: offline-bundle/
+          retention-days: 7
