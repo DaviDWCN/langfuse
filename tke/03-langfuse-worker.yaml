@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-worker
+  labels:
+    app: langfuse
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langfuse
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: langfuse
+        component: worker
+    spec:
+      containers:
+        - name: langfuse-worker
+          image: docker.io/langfuse/langfuse-worker:3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3030
+          envFrom:
+            - configMapRef:
+                name: langfuse-config
+            - secretRef:
+                name: langfuse-secret
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/public/health
+              port: 3030
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/public/health
+              port: 3030
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
