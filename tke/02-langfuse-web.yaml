@@ -17,8 +17,14 @@ spec:
         app: langfuse
         component: web
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       containers:
         - name: langfuse-web
+          securityContext:
+            allowPrivilegeEscalation: false
           image: docker.io/langfuse/langfuse:3
           imagePullPolicy: IfNotPresent
           ports:
