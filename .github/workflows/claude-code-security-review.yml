@@ -62,6 +62,7 @@ jobs:
           PY
 
       - name: Run Claude Code security review
+        if: ${{ secrets.CLAUDE_API_KEY != '' }}
         uses: ./.github/actions/claude-code-security-review
         with:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
